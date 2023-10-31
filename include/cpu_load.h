@@ -2,7 +2,8 @@
 #define CPU_LOAD_H_
 #include <mutex>
 #include <thread>
-#include <vector>
+#include <map>
+#include <atomic>
 
 
 typedef int load_value;
@@ -15,15 +16,20 @@ enum CgroupVersion {
 class CpuLoad{
 private:
     bool inited_;
+    std::atomic_bool exit_flag_;
+    int cpu_num_;
+
     CgroupVersion cgroup_version_;
     load_value expect_load_;
     std::mutex expect_mutex_;
     load_value real_load_;
     std::mutex real_mutex_;
-    std::thread load_compute_thread_;
-    std::vector<std::thread> load_sumulate_threads_;
+    std::thread monitor_thread_;
+    std::map<int, std::thread> load_threads_;
 
     CpuLoad();
+    CgroupVersion get_cgroup_version();
+    void load_fn();
 
 public:
     static CpuLoad* get_instance(){
@@ -32,8 +38,8 @@ public:
     }
 
     ~CpuLoad();
-    void Init();
-    bool Run();
+    bool Init();
+    void Run();
     bool Stop();
 
     load_value get_cpu_load();

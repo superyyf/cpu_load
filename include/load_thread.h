@@ -10,18 +10,19 @@ class LoadThread{
 private:
     int index_;
     bool run_flag_;
-    std::string group_name_;
+    std::string group_path_;
     std::atomic_bool exit_flag_;
     std::set<int> cpu_set_;
     std::thread thread_;
     std::mutex mutex_;
     std::condition_variable cond_;
     
+    void write_proc();
 
 public:
     LoadThread() = delete;
-    LoadThread(int index, std::string group_name_);
-    LoadThread(int index, std::string group_name_, std::initializer_list<int> cpu_set);
+    LoadThread(int index, std::string group_path_);
+    LoadThread(int index, std::string group_path_, std::initializer_list<int> cpu_set);
 
     bool Init();
     void Stop();

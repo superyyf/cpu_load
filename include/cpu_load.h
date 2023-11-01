@@ -4,6 +4,7 @@
 #include <thread>
 #include <map>
 #include <atomic>
+#include <load_thread.h>
 
 
 typedef int load_value;
@@ -18,6 +19,7 @@ private:
     bool inited_;
     std::atomic_bool exit_flag_;
     int cpu_num_;
+    std::string cgroup_path_;
 
     CgroupVersion cgroup_version_;
     load_value expect_load_;
@@ -25,11 +27,12 @@ private:
     load_value real_load_;
     std::mutex real_mutex_;
     std::thread monitor_thread_;
-    std::map<int, std::thread> load_threads_;
+    std::map<int, std::shared_ptr<LoadThread>> load_threads_;
 
     CpuLoad();
     CgroupVersion get_cgroup_version();
     void load_fn();
+    std::string get_cgroup_path();
 
 public:
     static CpuLoad* get_instance(){
@@ -40,7 +43,7 @@ public:
     ~CpuLoad();
     bool Init();
     void Run();
-    bool Stop();
+    void Stop();
 
     load_value get_cpu_load();
     bool set_cpu_load(load_value load);

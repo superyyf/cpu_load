@@ -2,23 +2,27 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <fstream>
 
 
 LoadThread::LoadThread(int index, std::string group_name)
     : index_(index)
     , run_flag_(false)
     , exit_flag_(false)
-    , group_name_(group_name){}
+    , group_path_(group_name){}
 
 bool LoadThread::Init(){
     thread_ = std::thread(load_fn);
-    int ret = mkdir(group_name_.c_str(), S_IRGRP | S_IWGRP);
+    int ret = mkdir(group_path_.c_str(), S_IRGRP | S_IWGRP);
     if(ret != 0){
         std::cerr << "mkdir error" << std::endl;
         return false;
     }
     
 }
+
 void LoadThread::Run(){
     Resume();
 }
@@ -49,8 +53,24 @@ void LoadThread::Pause(){
     }
 }
 
+void LoadThread::write_proc(){
+    pid_t tid = syscall(SYS_gettid);
+    std::string proc_path = group_path_ + "/cgroup.procs";
+    std::ofstream file;
+    file.open(proc_path);
+    if(file.is_open()){
+        file << tid;
+        file.close();
+    }
+    else{
+        std::cerr << "open file error" << std::endl;
+    }
+}
+
 void LoadThread::load_fn(){
     int i = 0;
+    write_proc();
+
     std::unique_lock<std::mutex> lock(mutex_);
     while(!exit_flag_){
         cond_.wait(lock, run_flag_);

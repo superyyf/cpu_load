@@ -1,6 +1,14 @@
 #include "cpu_load.h"
 #include <unistd.h>
 #include <iostream>
+#include <mntent.h>
+#include <sys/io.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#define MOUNT_INFO_FILE "/proc/mounts"
+#define CGROUP_NAME "cpu_load"
 
 CpuLoad::CpuLoad()
     : inited_(false)
@@ -27,17 +35,39 @@ bool CpuLoad::Init(){
         std::cout << "error: need cgroup" << std::endl;
         return false;
     }
-
+    std::string cpath = get_cgroup_path();
+    if(cpath.empty()){
+        return false;
+    }
     
+    cgroup_path_ = cpath + "/" + CGROUP_NAME;
+    if(access(cgroup_path_.c_str(), 0) == -1){
+        int ret = mkdir(cgroup_path_.c_str(), S_IRGRP | S_IWGRP);
+        if(ret != 0){
+            std::cerr << "mkdir" << std::endl;
+            return false;
+        }
+    }
+
+    for(int i = 0; i < cpu_num_; ++i){
+        std::shared_ptr<LoadThread> th = std::make_shared<LoadThread>(i, cgroup_path_+"/thread_"+std::to_string(i));
+        th->Init();
+        load_threads_.insert({i, th});
+    }
+
     inited_ = true;
     return true;
 }
 
 void CpuLoad::Run(){
-    for(int i = 0; i < cpu_num_; ++i){
-        if(load_threads_.find(i) == load_threads_.end()){
-            load_threads_.insert({i, std::thread(load_fn)});
-        }
+    for(auto &t : load_threads_){
+        t.second->Run();
+    }
+}
+
+void CpuLoad::Stop(){
+    for(auto &t : load_threads_){
+        t.second->Stop();
     }
 }
 
@@ -52,4 +82,22 @@ void CpuLoad::load_fn(){
     while(!exit_flag_){
         i++;
     }
+}
+    
+std::string CpuLoad::get_cgroup_path(){
+    struct mntent *mnt;
+    FILE *info = setmntent(MOUNT_INFO_FILE, "r");
+    if(info == nullptr){
+        std::cerr << "setmntent error" << std::endl;
+        return "";
+    }
+
+    while((mnt = getmntent(info)) != nullptr){
+        if(mnt->mnt_type == "cgroup2"){
+            endmntent(info);
+            return mnt->mnt_dir;
+        }
+    }
+    endmntent(info);
+    return "";
 }

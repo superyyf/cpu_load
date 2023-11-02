@@ -18,7 +18,7 @@ CpuLoad::CpuLoad()
     
 }
 
-bool CpuLoad::set_cpu_load(load_value load){
+void CpuLoad::set_cpu_load(load_value load){
     std::lock_guard<std::mutex> lock(expect_mutex_);
     expect_load_ = load;
 }

@@ -14,13 +14,13 @@ LoadThread::LoadThread(int index, std::string group_name)
     , group_path_(group_name){}
 
 bool LoadThread::Init(){
-    thread_ = std::thread(load_fn);
+    thread_ = std::thread(&LoadThread::load_fn, this);
     int ret = mkdir(group_path_.c_str(), S_IRGRP | S_IWGRP);
     if(ret != 0){
         std::cerr << "mkdir error" << std::endl;
         return false;
     }
-    
+    return true;
 }
 
 void LoadThread::Run(){
@@ -73,7 +73,7 @@ void LoadThread::load_fn(){
 
     std::unique_lock<std::mutex> lock(mutex_);
     while(!exit_flag_){
-        cond_.wait(lock, run_flag_);
+        cond_.wait(lock, [this]()->bool{ return this->run_flag_; });
         i++;
     }
 }

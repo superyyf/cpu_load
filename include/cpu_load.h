@@ -40,13 +40,12 @@ public:
         return &cpu_load_instance;
     }
 
-    ~CpuLoad();
     bool Init();
     void Run();
     void Stop();
 
     load_value get_cpu_load();
-    bool set_cpu_load(load_value load);
+    void set_cpu_load(load_value load);
 };
 
 

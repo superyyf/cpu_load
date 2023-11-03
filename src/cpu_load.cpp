@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <cstring>
 
 #define MOUNT_INFO_FILE "/proc/mounts"
 #define CGROUP_NAME "cpu_load"
@@ -44,7 +45,7 @@ bool CpuLoad::Init(){
     if(access(cgroup_path_.c_str(), 0) == -1){
         int ret = mkdir(cgroup_path_.c_str(), S_IRGRP | S_IWGRP);
         if(ret != 0){
-            std::cerr << "mkdir" << std::endl;
+            std::cout << "mkdir: " << strerror(errno) << std::endl;
             return false;
         }
     }
@@ -93,9 +94,10 @@ std::string CpuLoad::get_cgroup_path(){
     }
 
     while((mnt = getmntent(info)) != nullptr){
-        if(mnt->mnt_type == "cgroup2"){
+        if(strcmp(mnt->mnt_type,"cgroup2") == 0){
+            std::string res(mnt->mnt_dir);
             endmntent(info);
-            return mnt->mnt_dir;
+            return res;
         }
     }
     endmntent(info);

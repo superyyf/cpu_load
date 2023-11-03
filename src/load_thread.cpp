@@ -5,6 +5,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <fstream>
+#include <cstring>
 
 
 LoadThread::LoadThread(int index, std::string group_name)
@@ -17,7 +18,7 @@ bool LoadThread::Init(){
     thread_ = std::thread(&LoadThread::load_fn, this);
     int ret = mkdir(group_path_.c_str(), S_IRGRP | S_IWGRP);
     if(ret != 0){
-        std::cerr << "mkdir error" << std::endl;
+        std::cout << "mkdir: " << strerror(errno) << std::endl;
         return false;
     }
     return true;
@@ -63,7 +64,7 @@ void LoadThread::write_proc(){
         file.close();
     }
     else{
-        std::cerr << "open file error" << std::endl;
+        std::cout << "open: " << strerror(errno) << std::endl;
     }
 }
 

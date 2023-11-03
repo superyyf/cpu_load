@@ -14,7 +14,9 @@ int main(int argc, char* argv[]){
     
     signal(SIGINT, signal_handler);
     CpuLoad* loader = CpuLoad::get_instance();
-    loader->Init();
+    if(!loader->Init()){
+        std::cout << "init error" << std::endl;
+    }
     loader->set_cpu_load(80);
     loader->Run();
 

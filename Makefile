@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS = -I $(INC_PATH)
+CXXFLAGS = -I $(INC_PATH) -g
 COBJFLAGS = $(CXXFLAGS) -c
 
 TARGET = demo
@@ -16,7 +16,7 @@ CLEAN_LIST := $(TARGET) $(OBJ)
 
 default: mkdirs all
 
-$(TARGET): $(OBJ)
+$(BUILD_PATH)/$(TARGET): $(OBJ)
 	$(CXX) -o  $@ $(OBJ) $(CXXFLAGS)
 
 $(BUILD_PATH)/%.o: $(SRC_PATH)/%.c*
@@ -27,7 +27,7 @@ $(BUILD_PATH)/%.o: $(SRC_PATH)/%.c*
 mkdirs:
 	@mkdir -p $(BUILD_PATH)
 
-all: $(TARGET)
+all: $(BUILD_PATH)/$(TARGET)
 
 clean:
 	@echo clean $(CLEAN_LIST)

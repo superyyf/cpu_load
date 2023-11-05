@@ -15,12 +15,16 @@ LoadThread::LoadThread(int index, std::string group_name)
     , group_path_(group_name){}
 
 bool LoadThread::Init(){
-    thread_ = std::thread(&LoadThread::load_fn, this);
-    int ret = mkdir(group_path_.c_str(), S_IRGRP | S_IWGRP);
-    if(ret != 0){
-        std::cout << "mkdir: " << strerror(errno) << std::endl;
-        return false;
+    
+    if(access(group_path_.c_str(), 0) == -1){
+
+        int ret = mkdir(group_path_.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+        if(ret != 0){
+            std::cout << "mkdir: " << strerror(errno) << std::endl;
+            return false;
+        }
     }
+    thread_ = std::thread(&LoadThread::load_fn, this);
     return true;
 }
 

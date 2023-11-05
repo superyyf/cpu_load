@@ -7,16 +7,25 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <cstring>
+#include "load_compute.h"
+#include <fstream>
 
 #define MOUNT_INFO_FILE "/proc/mounts"
 #define CGROUP_NAME "cpu_load"
+#define CPU_DEFAULT_MAX 100000
 
 CpuLoad::CpuLoad()
     : inited_(false)
-    , exit_flag_(true)
+    , exit_flag_(false)
     , cpu_num_(0)
     , cgroup_version_(CGROUP_NONE){
     
+}
+
+CpuLoad::~CpuLoad(){
+    if(keep_thread_.joinable()){
+        keep_thread_.join();
+    }
 }
 
 void CpuLoad::set_cpu_load(load_value load){
@@ -36,14 +45,25 @@ bool CpuLoad::Init(){
         std::cout << "error: need cgroup" << std::endl;
         return false;
     }
-    std::string cpath = get_cgroup_path();
-    if(cpath.empty()){
+    cgroup_mount_point_ = get_cgroup_path();
+    if(cgroup_mount_point_.empty()){
         return false;
     }
+
+    //add cpu cpuset to cgroup.subtree_control
+    std::string sub_ctrller = cgroup_mount_point_ + "/cgroup.subtree_control";
+    std::ofstream file;
+    file.open(sub_ctrller);
+    if(!file.is_open()){
+        std::cout << "open: " << strerror(errno) << std::endl;
+        return false; 
+    }
+    file << "+cpu " << "+cpuset";
+    file.close();
     
-    cgroup_path_ = cpath + "/" + CGROUP_NAME;
-    if(access(cgroup_path_.c_str(), 0) == -1){
-        int ret = mkdir(cgroup_path_.c_str(), S_IRGRP | S_IWGRP);
+    group_path_ = cgroup_mount_point_ + "/" + CGROUP_NAME;
+    if(access(group_path_.c_str(), 0) == -1){
+        int ret = mkdir(group_path_.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         if(ret != 0){
             std::cout << "mkdir: " << strerror(errno) << std::endl;
             return false;
@@ -51,10 +71,12 @@ bool CpuLoad::Init(){
     }
 
     for(int i = 0; i < cpu_num_; ++i){
-        std::shared_ptr<LoadThread> th = std::make_shared<LoadThread>(i, cgroup_path_+"/thread_"+std::to_string(i));
+        std::shared_ptr<LoadThread> th = std::make_shared<LoadThread>(i, group_path_+"/thread_"+std::to_string(i));
         th->Init();
         load_threads_.insert({i, th});
     }
+
+    keep_thread_ = std::thread(&CpuLoad::keep_load_fn, this);
 
     inited_ = true;
     return true;
@@ -67,24 +89,71 @@ void CpuLoad::Run(){
 }
 
 void CpuLoad::Stop(){
+    exit_flag_ = true;
     for(auto &t : load_threads_){
         t.second->Stop();
     }
 }
-
 
 CgroupVersion CpuLoad::get_cgroup_version(){
     // TODO
     return CGROUP_V2;
 }
 
-void CpuLoad::load_fn(){
-    int i = 0;
+void CpuLoad::print_load_info(load_value now, load_value expect){
+    std::cout << "load now: " << now << "%, expect load: " << expect <<"%";
+}
+
+void CpuLoad::keep_load_fn(){
+
     while(!exit_flag_){
-        i++;
+        load_rate now_load;
+        do{
+            std::lock_guard<std::mutex> lock(real_mutex_);
+            real_load_ = get_sysCpuUsage();
+            now_load = real_load_;
+        }while(0);
+
+        print_load_info(now_load, expect_load_);
+
+        int dlt = expect_load_ - now_load;
+        if (dlt > -5 && dlt < 5){
+            continue;
+        }
+        else if(dlt >= 5){
+            dlt = 2;
+        }
+        else if(dlt < -5){
+            dlt = -5;
+        }
+
+        limit_ = limit_ + dlt;
+        limit_ = (limit_ > expect_load_) ? expect_load_ : limit_;
+        limit_ = (limit_ < 0) ? 0 : limit_; 
+        set_load_limit(limit_);
     }
 }
-    
+
+bool CpuLoad::set_load_limit(load_value limit){
+    if(limit < 0 || limit > 100){
+        std::cout << "limit not suitable" << std::endl;
+        return false;
+    }
+    std::string path = group_path_ + "/cpu.max";
+    std::ofstream file;
+    int time_limit = (int)(((double)limit / (double)100) * (double)CPU_DEFAULT_MAX); 
+    std::string value = std::to_string(time_limit) + " " + std::to_string(CPU_DEFAULT_MAX);
+    file.open(path);
+    if(!file.is_open()){
+        std::cout << "open: " << strerror(errno) << std::endl;
+        return false;
+    }
+
+    file << value;
+    file.close();
+    return true;
+} 
+
 std::string CpuLoad::get_cgroup_path(){
     struct mntent *mnt;
     FILE *info = setmntent(MOUNT_INFO_FILE, "r");

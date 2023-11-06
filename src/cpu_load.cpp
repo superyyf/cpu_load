@@ -12,7 +12,7 @@
 
 #define MOUNT_INFO_FILE "/proc/mounts"
 #define CGROUP_NAME "cpu_load"
-#define CPU_DEFAULT_MAX 100000
+#define CPU_DEFAULT_MAX 1000000
 
 CpuLoad::CpuLoad()
     : inited_(false)
@@ -101,7 +101,7 @@ CgroupVersion CpuLoad::get_cgroup_version(){
 }
 
 void CpuLoad::print_load_info(load_value now, load_value expect){
-    std::cout << "load now: " << now << "%, expect load: " << expect <<"%";
+    std::cout << "load now: " << now << "%, expect load: " << expect <<"%" << std::endl;
 }
 
 void CpuLoad::keep_load_fn(){
@@ -141,7 +141,10 @@ bool CpuLoad::set_load_limit(load_value limit){
     }
     std::string path = group_path_ + "/cpu.max";
     std::ofstream file;
-    int time_limit = (int)(((double)limit / (double)100) * (double)CPU_DEFAULT_MAX); 
+    int time_limit = (int)(((double)limit / (double)100) * (double)CPU_DEFAULT_MAX);
+    if(time_limit ==  0){
+        time_limit = (int)((double)0.001 * (double)CPU_DEFAULT_MAX);
+    }
     std::string value = std::to_string(time_limit) + " " + std::to_string(CPU_DEFAULT_MAX);
     file.open(path);
     if(!file.is_open()){

@@ -70,6 +70,8 @@ bool CpuLoad::Init(){
         }
     }
 
+    set_load_limit(0);
+
     for(int i = 0; i < cpu_num_; ++i){
         std::shared_ptr<LoadThread> th = std::make_shared<LoadThread>(i, group_path_+"/thread_"+std::to_string(i));
         th->Init();
@@ -92,6 +94,9 @@ void CpuLoad::Stop(){
     exit_flag_ = true;
     for(auto &t : load_threads_){
         t.second->Stop();
+    }
+    if(rmdir(group_path_.c_str()) == -1){
+        std::cout << "rmdir: " << strerror(errno) << std::endl;
     }
 }
 
@@ -117,11 +122,9 @@ void CpuLoad::keep_load_fn(){
         print_load_info(now_load, expect_load_);
 
         int dlt = expect_load_ - now_load;
-        if (dlt > -5 && dlt < 5){
-            continue;
-        }
-        else if(dlt >= 5){
-            dlt = 2;
+    
+        if(dlt >= 5){
+            dlt = 5;
         }
         else if(dlt < -5){
             dlt = -5;
@@ -145,6 +148,8 @@ bool CpuLoad::set_load_limit(load_value limit){
     if(time_limit ==  0){
         time_limit = (int)((double)0.001 * (double)CPU_DEFAULT_MAX);
     }
+
+    time_limit *= cpu_num_;
     std::string value = std::to_string(time_limit) + " " + std::to_string(CPU_DEFAULT_MAX);
     file.open(path);
     if(!file.is_open()){

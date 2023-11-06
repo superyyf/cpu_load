@@ -36,11 +36,16 @@ void LoadThread::Stop(){
     exit_flag_ = true;
     run_flag_ = true;
     cond_.notify_all();
+    if(thread_.joinable()){
+        thread_.join();
+    }
+    if(rmdir(group_path_.c_str()) == -1){
+        std::cout << "rmdir: " << strerror(errno) << std::endl;
+    }
 }
 
 void LoadThread::Resume(){
     if(!run_flag_){
-        std::unique_lock<std::mutex> lock(mutex_);
         run_flag_ = true;
         cond_.notify_one();
     }
@@ -76,9 +81,11 @@ void LoadThread::load_fn(){
     int i = 0;
     write_proc();
 
-    std::unique_lock<std::mutex> lock(mutex_);
     while(!exit_flag_){
-        cond_.wait(lock, [this]()->bool{ return this->run_flag_; });
+        if(!run_flag_){
+            std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+            cond_.wait(lock, [this]()->bool{ return this->run_flag_; });
+        }
         i++;
     }
 }

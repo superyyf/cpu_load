@@ -5,11 +5,12 @@
 #include <mutex>
 #include <atomic>
 #include <condition_variable>
+#include <atomic>
 
 class LoadThread{
 private:
     int index_;
-    bool run_flag_;
+    std::atomic_bool run_flag_;
     std::string group_path_;
     std::atomic_bool exit_flag_;
     std::set<int> cpu_set_;
